@@ -75,6 +75,10 @@ class CacheableRequest {
 					requestErrorCallback = () => {
 						if (!requestErrored) {
 							requestErrored = true;
+							// Error can be ConnectError / TimeoutError, and must be propagated (to avoid a leak for eg)
+							if (error) {
+								ee.emit('error', new CacheableRequest.RequestError(error));
+							}
 							resolve();
 						}
 					};
@@ -189,6 +193,8 @@ class CacheableRequest {
 				const errorHandler = error => ee.emit('error', new CacheableRequest.CacheError(error));
 				this.cache.once('error', errorHandler);
 				ee.on('response', () => this.cache.removeListener('error', errorHandler));
+				// Error can be emited if the underyling request failed (connect / timeout)
+				ee.on('error', () => this.cache.removeListener('error', errorHandler));
 
 				try {
 					await get(opts);
